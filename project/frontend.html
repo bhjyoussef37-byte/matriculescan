@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matricule Display</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .latest-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .latest-section h2 { font-size: 1.5em; margin-bottom: 15px; color: #333; }
+        .video-container { width: 100%; max-width: 640px; margin: 0 auto 15px; background: #000; border-radius: 8px; overflow: hidden; border: 2px solid #ddd; }
+        .video-container img { width: 100%; height: auto; display: block; }
+        .video-hint { text-align: center; margin-top: 10px; color: #666; font-size: 0.9em; }
+        .matricule { font-size: 2.5em; margin: 20px 0; font-weight: bold; font-family: monospace; }
+        .numbers { color: blue; font-size: 1.5em; margin: 10px 0; }
+        .letters { color: green; font-size: 1.5em; margin: 10px 0; }
+        .history-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .history-section h2 { font-size: 1.5em; margin-bottom: 15px; color: #333; }
+        .history-table { width: 100%; border-collapse: collapse; }
+        .history-table th { background: #4CAF50; color: white; padding: 10px; text-align: left; }
+        .history-table td { padding: 10px; border-bottom: 1px solid #ddd; }
+        .history-table tr:hover { background: #f9f9f9; }
+        .clear-btn { background: #ff6b6b; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .clear-btn:hover { background: #ee5a52; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Matricule Scanning System</h1>
+        </div>
+
+        <div class="latest-section">
+            <h2>Live Camera Feed</h2>
+            <div class="video-container">
+                <img id="videoFeed" src="http://localhost:5002/video_feed" alt="Camera Feed" />
+            </div>
+            <div class="video-hint">Point your camera at the matricule plate</div>
+        </div>
+
+        <div class="latest-section">
+            <h2>Latest Scanned Matricule</h2>
+            <div class="matricule" id="matricule">Waiting for scan...</div>
+            <div class="numbers" id="numbers"></div>
+            <div class="letters" id="letters"></div>
+        </div>
+
+        <div class="history-section">
+            <h2>System Statistics</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 2em; font-weight: bold; color: #1976d2;" id="allowedCount">0</div>
+                    <div style="color: #555; margin-top: 5px;">Allowed Matricules</div>
+                </div>
+                <div style="background: #f3e5f5; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 2em; font-weight: bold; color: #7b1fa2;" id="totalScans">0</div>
+                    <div style="color: #555; margin-top: 5px;">Total Scans</div>
+                </div>
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 2em; font-weight: bold; color: #388e3c;" id="authorizedScans">0</div>
+                    <div style="color: #555; margin-top: 5px;">Authorized Scans</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h2>Scanning History</h2>
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Matricule</th>
+                        <th>Numbers</th>
+                        <th>Letters</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="5" style="text-align: center; color: #999;">No scans yet</td></tr>
+                </tbody>
+            </table>
+            <button class="clear-btn" onclick="clearHistory()">Clear History</button>
+        </div>
+
+        <div class="history-section">
+            <h2>Manage Allowed Matricules</h2>
+            <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                <input type="text" id="newMatricule" placeholder="Enter matricule (e.g., 12345ا1)" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                <button onclick="addAllowedMatricule()" style="background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">Add</button>
+            </div>
+            <h3>Active Allowed Matricules</h3>
+            <ul id="allowedList" style="list-style: none; padding: 0;">
+                <li style="color: #999;">No allowed matricules</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function fetchMatricule() {
+            fetch('/get_matricule')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('matricule').textContent = data.matricule || 'Waiting for scan...';
+                    document.getElementById('numbers').textContent = 'Numbers: ' + data.numbers;
+                    document.getElementById('letters').textContent = 'Letters: ' + data.letters;
+                })
+                .catch(error => console.error('Error fetching matricule:', error));
+        }
+
+        function fetchHistory() {
+            fetch('/history')
+                .then(response => response.json())
+                .then(data => {
+                    const historyBody = document.getElementById('historyBody');
+                    if (data.length === 0) {
+                        historyBody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">No scans yet</td></tr>';
+                    } else {
+                        historyBody.innerHTML = data.map(item => `
+                            <tr>
+                                <td>${item.timestamp}</td>
+                                <td><strong>${item.matricule}</strong></td>
+                                <td>${item.numbers}</td>
+                                <td>${item.letters}</td>
+                                <td>${item.is_authorized ? '<span style="color: green;">✓ Authorized</span>' : '<span style="color: red;">✗ Unauthorized</span>'}</td>
+                            </tr>
+                        `).join('');
+                    }
+                })
+                .catch(error => console.error('Error fetching history:', error));
+        }
+
+        function fetchStats() {
+            fetch('/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('allowedCount').textContent = data.allowed_matricules;
+                    document.getElementById('totalScans').textContent = data.total_scans;
+                    document.getElementById('authorizedScans').textContent = data.authorized_scans;
+                })
+                .catch(error => console.error('Error fetching stats:', error));
+        }
+
+        function fetchAllowedList() {
+            fetch('/allowed_matricules')
+                .then(response => response.json())
+                .then(data => {
+                    const list = document.getElementById('allowedList');
+                    if (data.allowed_matricules.length === 0) {
+                        list.innerHTML = '<li style="color: #999;">No allowed matricules</li>';
+                    } else {
+                        list.innerHTML = data.allowed_matricules.map(matricule => `
+                            <li style="padding: 8px; background: #f5f5f5; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                <span>${matricule}</span>
+                                <button onclick="removeAllowedMatricule('${matricule}')" style="background: #ff6b6b; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.8em;">Remove</button>
+                            </li>
+                        `).join('');
+                    }
+                })
+                .catch(error => console.error('Error fetching allowed list:', error));
+        }
+
+        function addAllowedMatricule() {
+            const matricule = document.getElementById('newMatricule').value.trim();
+            if (!matricule) {
+                alert('Please enter a matricule');
+                return;
+            }
+            fetch('/add_allowed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matricule: matricule })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('newMatricule').value = '';
+                    fetchAllowedList();
+                    fetchStats();
+                    alert('Matricule added successfully');
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error adding matricule:', error));
+        }
+
+        function removeAllowedMatricule(matricule) {
+            if (!confirm('Remove this matricule?')) return;
+            fetch('/remove_allowed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matricule: matricule })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    fetchAllowedList();
+                    fetchStats();
+                } else {
+                    alert('Error removing matricule');
+                }
+            })
+            .catch(error => console.error('Error removing matricule:', error));
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear the scanning history?')) {
+                fetch('/clear_history', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            fetchHistory();
+                            fetchStats();
+                        }
+                    })
+                    .catch(error => console.error('Error clearing history:', error));
+            }
+        }
+
+        // Initial fetch
+        fetchMatricule();
+        fetchHistory();
+        fetchStats();
+        fetchAllowedList();
+
+        // Update every second
+        setInterval(fetchMatricule, 1000);
+        setInterval(fetchHistory, 2000);
+        setInterval(fetchStats, 3000);
+    </script>
+</body>
+</html>
